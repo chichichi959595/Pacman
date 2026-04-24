@@ -2,6 +2,8 @@
 #https://github.com/hbokmann/Pacman
   
 import pygame
+import sys
+import random
   
 black = (0,0,0)
 white = (255,255,255)
@@ -11,13 +13,22 @@ red = (255,0,0)
 purple = (255,0,255)
 yellow   = ( 255, 255,   0)
 
-Trollicon=pygame.image.load('images/Trollman.png')
-pygame.display.set_icon(Trollicon)
+# 設定鬼魂數量上限
+MAX_GHOSTS = 8
+
+try:
+    Trollicon=pygame.image.load('images/Trollman.png')
+    pygame.display.set_icon(Trollicon)
+except pygame.error:
+    pass # 忽略找不到圖標的錯誤
 
 #Add music
 pygame.mixer.init()
-pygame.mixer.music.load('pacman.mp3')
-pygame.mixer.music.play(-1, 0.0)
+try:
+    pygame.mixer.music.load('pacman.mp3')
+    pygame.mixer.music.play(-1, 0.0)
+except pygame.error:
+    pass # 忽略找不到音樂的錯誤
 
 # This class represents the bar at the bottom that the player controls
 class Wall(pygame.sprite.Sprite):
@@ -38,7 +49,7 @@ class Wall(pygame.sprite.Sprite):
 # This creates all the walls in room 1
 def setupRoomOne(all_sprites_list):
     # Make the walls. (x_pos, y_pos, width, height)
-    wall_list=pygame.sprite.RenderPlain()
+    wall_list=pygame.sprite.Group()
      
     # This is a list of walls. Each is in the form [x, y, width, height]
     walls = [ [0,0,6,600],
@@ -91,7 +102,7 @@ def setupRoomOne(all_sprites_list):
     return wall_list
 
 def setupGate(all_sprites_list):
-      gate = pygame.sprite.RenderPlain()
+      gate = pygame.sprite.Group()
       gate.add(Wall(282,242,42,2,white))
       all_sprites_list.add(gate)
       return gate
@@ -132,7 +143,12 @@ class Player(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
    
         # Set height, width
-        self.image = pygame.image.load(filename).convert()
+        try:
+            self.image = pygame.image.load(filename).convert()
+        except pygame.error:
+            # 支援現代化環境：若無圖片素材，改用黃色方塊代替
+            self.image = pygame.Surface([30, 30])
+            self.image.fill(yellow)
   
         # Make our top-left corner the passed-in location.
         self.rect = self.image.get_rect()
@@ -199,138 +215,54 @@ class Player(pygame.sprite.Sprite):
 
 #Inheritime Player klassist
 class Ghost(Player):
-    # Change the speed of the ghost
-    def changespeed(self,list,ghost,turn,steps,l):
-      try:
-        z=list[turn][2]
-        if steps < z:
-          self.change_x=list[turn][0]
-          self.change_y=list[turn][1]
-          steps+=1
-        else:
-          if turn < l:
-            turn+=1
-          elif ghost == "clyde":
-            turn = 2
-          else:
-            turn = 0
-          self.change_x=list[turn][0]
-          self.change_y=list[turn][1]
-          steps = 0
-        return [turn,steps]
-      except IndexError:
-         return [0,0]
+    def __init__(self, x, y, filename):
+        super().__init__(x, y, filename)
+        # 初始化時給予隨機初始方向與計步器
+        self.steps_taken = 0
+        dirs = [(15,0), (-15,0), (0,15), (0,-15)]
+        self.change_x, self.change_y = random.choice(dirs)
 
-Pinky_directions = [
-[0,-30,4],
-[15,0,9],
-[0,15,11],
-[-15,0,23],
-[0,15,7],
-[15,0,3],
-[0,-15,3],
-[15,0,19],
-[0,15,3],
-[15,0,3],
-[0,15,3],
-[15,0,3],
-[0,-15,15],
-[-15,0,7],
-[0,15,3],
-[-15,0,19],
-[0,-15,11],
-[15,0,9]
-]
+    def update(self, walls, gate=False):
+        old_x = self.rect.left
+        old_y = self.rect.top
+        self.rect.left += self.change_x
+        self.rect.top += self.change_y
 
-Blinky_directions = [
-[0,-15,4],
-[15,0,9],
-[0,15,11],
-[15,0,3],
-[0,15,7],
-[-15,0,11],
-[0,15,3],
-[15,0,15],
-[0,-15,15],
-[15,0,3],
-[0,-15,11],
-[-15,0,3],
-[0,-15,11],
-[-15,0,3],
-[0,-15,3],
-[-15,0,7],
-[0,-15,3],
-[15,0,15],
-[0,15,15],
-[-15,0,3],
-[0,15,3],
-[-15,0,3],
-[0,-15,7],
-[-15,0,3],
-[0,15,7],
-[-15,0,11],
-[0,-15,7],
-[15,0,5]
-]
+        collide = pygame.sprite.spritecollide(self, walls, False)
+        if gate:
+            collide_gate = pygame.sprite.spritecollide(self, gate, False)
+            if collide_gate:
+                collide.extend(collide_gate)
 
-Inky_directions = [
-[30,0,2],
-[0,-15,4],
-[15,0,10],
-[0,15,7],
-[15,0,3],
-[0,-15,3],
-[15,0,3],
-[0,-15,15],
-[-15,0,15],
-[0,15,3],
-[15,0,15],
-[0,15,11],
-[-15,0,3],
-[0,-15,7],
-[-15,0,11],
-[0,15,3],
-[-15,0,11],
-[0,15,7],
-[-15,0,3],
-[0,-15,3],
-[-15,0,3],
-[0,-15,15],
-[15,0,15],
-[0,15,3],
-[-15,0,15],
-[0,15,11],
-[15,0,3],
-[0,-15,11],
-[15,0,11],
-[0,15,3],
-[15,0,1],
-]
+        self.steps_taken += 1
 
-Clyde_directions = [
-[-30,0,2],
-[0,-15,4],
-[15,0,5],
-[0,15,7],
-[-15,0,11],
-[0,-15,7],
-[-15,0,3],
-[0,15,7],
-[-15,0,7],
-[0,15,15],
-[15,0,15],
-[0,-15,3],
-[-15,0,11],
-[0,-15,7],
-[15,0,3],
-[0,-15,11],
-[15,0,9],
-]
+        # AI 隨機漫步邏輯：當碰到牆壁，或是走了一段距離後隨機轉彎，增加多變性
+        if collide or self.steps_taken > random.randint(15, 60):
+            if collide:
+                # 碰到牆壁先復原位置
+                self.rect.left = old_x
+                self.rect.top = old_y
 
-pl = len(Pinky_directions)-1
-bl = len(Blinky_directions)-1
-il = len(Inky_directions)-1
-cl = len(Clyde_directions)-1
+            # 尋找新的可走方向
+            dirs = [(15,0), (-15,0), (0,15), (0,-15)]
+            random.shuffle(dirs) # 隨機打亂方向測試順序
+            
+            for dx, dy in dirs:
+                # 模擬移動一步來測試是否會撞牆
+                self.rect.left = old_x + dx
+                self.rect.top = old_y + dy
+                if not pygame.sprite.spritecollide(self, walls, False) and not (gate and pygame.sprite.spritecollide(self, gate, False)):
+                    # 找到可以走的路，更新方向
+                    self.change_x = dx
+                    self.change_y = dy
+                    self.steps_taken = 0
+                    self.rect.left = old_x
+                    self.rect.top = old_y
+                    break
+            else:
+                # 萬一四面楚歌卡死 (通常不會發生)，退回原位等下一幀
+                self.rect.left = old_x
+                self.rect.top = old_y
 
 # Call this function so the Pygame library can initialize itself
 pygame.init()
@@ -359,64 +291,37 @@ background.fill(black)
 clock = pygame.time.Clock()
 
 pygame.font.init()
-font = pygame.font.Font("freesansbold.ttf", 24)
+try:
+    font = pygame.font.Font("freesansbold.ttf", 24)
+except OSError:
+    # 如果找不到 freesansbold.ttf，自動退回使用系統預設字體
+    font = pygame.font.Font(None, 24)
 
 #default locations for Pacman and monstas
 w = 303-16 #Width
 p_h = (7*60)+19 #Pacman height
-m_h = (4*60)+19 #Monster height
-b_h = (3*60)+19 #Binky height
-i_w = 303-16-32 #Inky width
-c_w = 303+(32-16) #Clyde width
 
 def startGame():
 
-  all_sprites_list = pygame.sprite.RenderPlain()
+  all_sprites_list = pygame.sprite.Group()
 
-  block_list = pygame.sprite.RenderPlain()
+  block_list = pygame.sprite.Group()
 
-  monsta_list = pygame.sprite.RenderPlain()
+  monsta_list = pygame.sprite.Group()
 
-  pacman_collide = pygame.sprite.RenderPlain()
+  pacman_collide = pygame.sprite.Group()
 
   wall_list = setupRoomOne(all_sprites_list)
 
   gate = setupGate(all_sprites_list)
 
-
-  p_turn = 0
-  p_steps = 0
-
-  b_turn = 0
-  b_steps = 0
-
-  i_turn = 0
-  i_steps = 0
-
-  c_turn = 0
-  c_steps = 0
-
-
   # Create the player paddle object
   Pacman = Player( w, p_h, "images/Trollman.png" )
   all_sprites_list.add(Pacman)
   pacman_collide.add(Pacman)
-   
-  Blinky=Ghost( w, b_h, "images/Blinky.png" )
-  monsta_list.add(Blinky)
-  all_sprites_list.add(Blinky)
 
-  Pinky=Ghost( w, m_h, "images/Pinky.png" )
-  monsta_list.add(Pinky)
-  all_sprites_list.add(Pinky)
-   
-  Inky=Ghost( i_w, m_h, "images/Inky.png" )
-  monsta_list.add(Inky)
-  all_sprites_list.add(Inky)
-   
-  Clyde=Ghost( c_w, m_h, "images/Clyde.png" )
-  monsta_list.add(Clyde)
-  all_sprites_list.add(Clyde)
+  # 準備存放鬼魂可以隨機生成的合法座標
+  valid_spawn_points = []
 
   # Draw the grid
   for row in range(19):
@@ -440,20 +345,70 @@ def startGame():
               # Add the block to the list of objects
               block_list.add(block)
               all_sprites_list.add(block)
+              
+              # 收集鬼魂合法的生成座標 (將豆子座標微調到置中)
+              ghost_x = block.rect.x - 13
+              ghost_y = block.rect.y - 13
+              # 確保首波鬼魂的生成位置不要離玩家太近 (安全距離大於100像素)
+              if abs(ghost_x - w) > 100 or abs(ghost_y - p_h) > 100:
+                  valid_spawn_points.append((ghost_x, ghost_y))
 
   bll = len(block_list)
 
+  # 隨機打亂並挑選 4 個生成位置給初始的 4 隻鬼魂
+  random.shuffle(valid_spawn_points)
+  spawns = valid_spawn_points[:4]
+   
+  Blinky=Ghost( spawns[0][0], spawns[0][1], "images/Blinky.png" )
+  monsta_list.add(Blinky)
+  all_sprites_list.add(Blinky)
+
+  Pinky=Ghost( spawns[1][0], spawns[1][1], "images/Pinky.png" )
+  monsta_list.add(Pinky)
+  all_sprites_list.add(Pinky)
+   
+  Inky=Ghost( spawns[2][0], spawns[2][1], "images/Inky.png" )
+  monsta_list.add(Inky)
+  all_sprites_list.add(Inky)
+   
+  Clyde=Ghost( spawns[3][0], spawns[3][1], "images/Clyde.png" )
+  monsta_list.add(Clyde)
+  all_sprites_list.add(Clyde)
+
   score = 0
-
   done = False
-
-  i = 0
+  
+  # 設定定時器：每 15 秒 (15000 毫秒) 觸發一次新增鬼魂事件
+  ADD_GHOST_EVENT = pygame.USEREVENT + 1
+  pygame.time.set_timer(ADD_GHOST_EVENT, 15000)
+  
+  # 提供給隨機生成的鬼魂外觀選項
+  ghost_images = ["images/Blinky.png", "images/Pinky.png", "images/Inky.png", "images/Clyde.png"]
 
   while done == False:
       # ALL EVENT PROCESSING SHOULD GO BELOW THIS COMMENT
       for event in pygame.event.get():
           if event.type == pygame.QUIT:
               done=True
+              
+          # 檢查是否觸發了增加鬼魂事件
+          if event.type == ADD_GHOST_EVENT:
+              if len(monsta_list) < MAX_GHOSTS:
+                  # 嘗試找一個遠離「當前」小精靈位置的安全生成點
+                  safe_points = []
+                  for pt in valid_spawn_points:
+                      dist_x = abs(pt[0] - Pacman.rect.left)
+                      dist_y = abs(pt[1] - Pacman.rect.top)
+                      if dist_x > 100 or dist_y > 100:
+                          safe_points.append(pt)
+                  
+                  # 如果有安全的生成點，就誕生一隻新鬼魂
+                  if safe_points:
+                      spawn_pt = random.choice(safe_points)
+                      img = random.choice(ghost_images)
+                      new_ghost = Ghost(spawn_pt[0], spawn_pt[1], img)
+                      monsta_list.add(new_ghost)
+                      all_sprites_list.add(new_ghost)
 
           if event.type == pygame.KEYDOWN:
               if event.key == pygame.K_LEFT:
@@ -480,29 +435,9 @@ def startGame():
       # ALL GAME LOGIC SHOULD GO BELOW THIS COMMENT
       Pacman.update(wall_list,gate)
 
-      returned = Pinky.changespeed(Pinky_directions,False,p_turn,p_steps,pl)
-      p_turn = returned[0]
-      p_steps = returned[1]
-      Pinky.changespeed(Pinky_directions,False,p_turn,p_steps,pl)
-      Pinky.update(wall_list,False)
-
-      returned = Blinky.changespeed(Blinky_directions,False,b_turn,b_steps,bl)
-      b_turn = returned[0]
-      b_steps = returned[1]
-      Blinky.changespeed(Blinky_directions,False,b_turn,b_steps,bl)
-      Blinky.update(wall_list,False)
-
-      returned = Inky.changespeed(Inky_directions,False,i_turn,i_steps,il)
-      i_turn = returned[0]
-      i_steps = returned[1]
-      Inky.changespeed(Inky_directions,False,i_turn,i_steps,il)
-      Inky.update(wall_list,False)
-
-      returned = Clyde.changespeed(Clyde_directions,"clyde",c_turn,c_steps,cl)
-      c_turn = returned[0]
-      c_steps = returned[1]
-      Clyde.changespeed(Clyde_directions,"clyde",c_turn,c_steps,cl)
-      Clyde.update(wall_list,False)
+      # 更新所有在列表裡的鬼魂 (不管是初始的還是後來生成的)
+      for monsta in monsta_list:
+          monsta.update(wall_list, False)
 
       # See if the Pacman block has collided with anything.
       blocks_hit_list = pygame.sprite.spritecollide(Pacman, block_list, True)
@@ -525,11 +460,13 @@ def startGame():
       screen.blit(text, [10, 10])
 
       if score == bll:
+        pygame.time.set_timer(ADD_GHOST_EVENT, 0) # 遊戲結束時停止計時器
         doNext("Congratulations, you won!",145,all_sprites_list,block_list,monsta_list,pacman_collide,wall_list,gate)
 
       monsta_hit_list = pygame.sprite.spritecollide(Pacman, monsta_list, False)
 
       if monsta_hit_list:
+        pygame.time.set_timer(ADD_GHOST_EVENT, 0) # 遊戲結束時停止計時器
         doNext("Game Over",235,all_sprites_list,block_list,monsta_list,pacman_collide,wall_list,gate)
 
       # ALL CODE TO DRAW SHOULD GO ABOVE THIS COMMENT
@@ -544,17 +481,14 @@ def doNext(message,left,all_sprites_list,block_list,monsta_list,pacman_collide,w
       for event in pygame.event.get():
         if event.type == pygame.QUIT:
           pygame.quit()
+          sys.exit()
         if event.type == pygame.KEYDOWN:
           if event.key == pygame.K_ESCAPE:
             pygame.quit()
+            sys.exit()
           if event.key == pygame.K_RETURN:
-            del all_sprites_list
-            del block_list
-            del monsta_list
-            del pacman_collide
-            del wall_list
-            del gate
             startGame()
+            return # 離開這個迴圈，避免堆疊過深
 
       #Grey background
       w = pygame.Surface((400,200))  # the size of your rect
