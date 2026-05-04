@@ -4,6 +4,7 @@
 import pygame
 import sys
 import random
+from bomb_logic import Bomb
   
 black = (0,0,0)
 white = (255,255,255)
@@ -136,6 +137,7 @@ class Player(pygame.sprite.Sprite):
     # Set speed vector
     change_x=0
     change_y=0
+    bomb_count=3
   
     # Constructor function
     def __init__(self,x,y, filename):
@@ -315,6 +317,8 @@ def startGame():
 
   gate = setupGate(all_sprites_list)
 
+  bomb_list = pygame.sprite.Group()
+
   # Create the player paddle object
   Pacman = Player( w, p_h, "images/Trollman.png" )
   all_sprites_list.add(Pacman)
@@ -419,6 +423,12 @@ def startGame():
                   Pacman.changespeed(0,-30)
               if event.key == pygame.K_DOWN:
                   Pacman.changespeed(0,30)
+              if event.key == pygame.K_SPACE:
+                  if Pacman.bomb_count > 0:
+                      bomb = Bomb(Pacman.rect.left, Pacman.rect.top)
+                      bomb_list.add(bomb)
+                      all_sprites_list.add(bomb)
+                      Pacman.bomb_count -= 1
 
           if event.type == pygame.KEYUP:
               if event.key == pygame.K_LEFT:
@@ -439,6 +449,23 @@ def startGame():
       for monsta in monsta_list:
           monsta.update(wall_list, False)
 
+      # 更新炸彈並檢查爆炸傷害
+      for bomb in list(bomb_list):
+          bomb.update(wall_list)
+          if bomb.exploded:
+              explosion_rects = bomb.get_explosion_rects(wall_list)
+              for ghost in list(monsta_list):
+                  for rect in explosion_rects:
+                      if ghost.rect.colliderect(rect):
+                          ghost.kill()
+                          break
+              pacman_hit = any(Pacman.rect.colliderect(rect) for rect in explosion_rects)
+              bomb.kill()
+              Pacman.bomb_count += 1
+              if pacman_hit:
+                  pygame.time.set_timer(ADD_GHOST_EVENT, 0)
+                  doNext("Game Over",235,all_sprites_list,block_list,monsta_list,pacman_collide,wall_list,gate)
+
       # See if the Pacman block has collided with anything.
       blocks_hit_list = pygame.sprite.spritecollide(Pacman, block_list, True)
        
@@ -458,6 +485,8 @@ def startGame():
 
       text=font.render("Score: "+str(score)+"/"+str(bll), True, red)
       screen.blit(text, [10, 10])
+      bomb_text = font.render("Bombs: "+str(Pacman.bomb_count), True, yellow)
+      screen.blit(bomb_text, [10, 35])
 
       if score == bll:
         pygame.time.set_timer(ADD_GHOST_EVENT, 0) # 遊戲結束時停止計時器
