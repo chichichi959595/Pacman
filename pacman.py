@@ -4,7 +4,6 @@
 import pygame
 import sys
 import random
-from bomb_logic import Bomb
   
 black = (0,0,0)
 white = (255,255,255)
@@ -26,10 +25,66 @@ except pygame.error:
 #Add music
 pygame.mixer.init()
 try:
-    pygame.mixer.music.load('pacman.mp3')
+    pygame.mixer.music.load('sounds/pacman.mp3')
     pygame.mixer.music.play(-1, 0.0)
 except pygame.error:
     pass # 忽略找不到音樂的錯誤
+
+try:
+    bomb_sound = pygame.mixer.Sound('sounds/bomb_sound.mp3')
+except pygame.error:
+    bomb_sound = None
+
+class Bomb(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.timer = 50  # 倒數 50 幀（約 5 秒，FPS=10）
+        self.exploded = False
+
+        try:
+            self._img_normal = pygame.transform.scale(pygame.image.load('images/bomb.png').convert_alpha(), (30, 30))
+            self._img_flash  = pygame.transform.scale(pygame.image.load('images/bomb_flash.png').convert_alpha(), (30, 30))
+        except pygame.error:
+            self._img_normal = pygame.Surface([30, 30], pygame.SRCALPHA)
+            pygame.draw.circle(self._img_normal, (80, 80, 80), (15, 15), 12)
+            self._img_flash = pygame.Surface([30, 30], pygame.SRCALPHA)
+            pygame.draw.circle(self._img_flash, red, (15, 15), 12)
+
+        self.image = self._img_normal
+        self.rect = self.image.get_rect()
+        self.rect.left = x
+        self.rect.top = y
+
+    def update(self, wall_list):
+        if self.timer > 0:
+            self.timer -= 1
+            if self.timer < 10:
+                # 每 3 幀交替一次，產生閃爍效果
+                self.image = self._img_flash if (self.timer // 3) % 2 == 0 else self._img_normal
+        else:
+            self.exploded = True
+
+    def get_explosion_cells(self, wall_list):
+        """回傳 [(rect, cell_type, rotation), ...]，供繪圖與碰撞判定共用。
+        cell_type: 'center' | 'mid' | 'end'
+        rotation: pygame.transform.rotate 的角度（以向右為 0°，逆時針為正）
+        """
+        cells = []
+        cx, cy, cell = self.rect.left, self.rect.top, 30
+        cells.append((pygame.Rect(cx, cy, cell, cell), 'center', 0))
+        # (旋轉角度, dx, dy) — 向右=0°, 向左=180°, 向下=-90°, 向上=90°
+        for rot, dx, dy in [(0, 1, 0), (180, -1, 0), (-90, 0, 1), (90, 0, -1)]:
+            row = []
+            for step in range(1, 21):  # 最多 20 格，足以橫跨整張地圖
+                r = pygame.Rect(cx + dx*cell*step, cy + dy*cell*step, cell, cell)
+                if not screen.get_rect().contains(r):
+                    break
+                if any(r.colliderect(w.rect) for w in wall_list):
+                    break
+                row.append(r)
+            for i, r in enumerate(row):
+                cells.append((r, 'end' if i == len(row) - 1 else 'mid', rot))
+        return cells
 
 # This class represents the bar at the bottom that the player controls
 class Wall(pygame.sprite.Sprite):
@@ -137,12 +192,12 @@ class Player(pygame.sprite.Sprite):
     # Set speed vector
     change_x=0
     change_y=0
-    bomb_count=3
   
     # Constructor function
     def __init__(self,x,y, filename):
         # Call the parent's constructor
         pygame.sprite.Sprite.__init__(self)
+        self.bomb_count = 3
    
         # Set height, width
         try:
@@ -272,6 +327,13 @@ pygame.init()
 # Create an 606x606 sized screen
 screen = pygame.display.set_mode([606, 606])
 
+try:
+    _expl_center = pygame.transform.scale(pygame.image.load('images/explosion_center.png').convert_alpha(), (30, 30))
+    _expl_mid    = pygame.transform.scale(pygame.image.load('images/explosion_mid.png').convert_alpha(), (30, 30))
+    _expl_end    = pygame.transform.scale(pygame.image.load('images/explosion_end.png').convert_alpha(), (30, 30))
+except pygame.error:
+    _expl_center = _expl_mid = _expl_end = None
+
 # This is a list of 'sprites.' Each block in the program is
 # added to this list. The list is managed by a class called 'RenderPlain.'
 
@@ -287,8 +349,6 @@ background = background.convert()
   
 # Fill the screen with a black background
 background.fill(black)
-
-
 
 clock = pygame.time.Clock()
 
@@ -311,13 +371,13 @@ def startGame():
 
   monsta_list = pygame.sprite.Group()
 
+  bomb_list = pygame.sprite.Group()
+
   pacman_collide = pygame.sprite.Group()
 
   wall_list = setupRoomOne(all_sprites_list)
 
   gate = setupGate(all_sprites_list)
-
-  bomb_list = pygame.sprite.Group()
 
   # Create the player paddle object
   Pacman = Player( w, p_h, "images/Trollman.png" )
@@ -389,6 +449,9 @@ def startGame():
   # 提供給隨機生成的鬼魂外觀選項
   ghost_images = ["images/Blinky.png", "images/Pinky.png", "images/Inky.png", "images/Clyde.png"]
 
+  active_explosions = []  # [(rects, frames_remaining)]
+  space_held = False
+
   while done == False:
       # ALL EVENT PROCESSING SHOULD GO BELOW THIS COMMENT
       for event in pygame.event.get():
@@ -423,12 +486,6 @@ def startGame():
                   Pacman.changespeed(0,-30)
               if event.key == pygame.K_DOWN:
                   Pacman.changespeed(0,30)
-              if event.key == pygame.K_SPACE:
-                  if Pacman.bomb_count > 0:
-                      bomb = Bomb(Pacman.rect.left, Pacman.rect.top)
-                      bomb_list.add(bomb)
-                      all_sprites_list.add(bomb)
-                      Pacman.bomb_count -= 1
 
           if event.type == pygame.KEYUP:
               if event.key == pygame.K_LEFT:
@@ -445,26 +502,57 @@ def startGame():
       # ALL GAME LOGIC SHOULD GO BELOW THIS COMMENT
       Pacman.update(wall_list,gate)
 
+      # 炸彈邏輯判定
+      for b in list(bomb_list):
+          b.update(wall_list)
+          if b.exploded:
+              cells = b.get_explosion_cells(wall_list)
+              active_explosions.append((cells, 5))
+              if bomb_sound:
+                  bomb_sound.play()
+              rects = [r for r, _, _ in cells]
+              for m in list(monsta_list):
+                  if any(m.rect.colliderect(r) for r in rects):
+                      m.kill()
+              pacman_hit = any(Pacman.rect.colliderect(r) for r in rects)
+              b.kill()
+              if pacman_hit:
+                  pygame.time.set_timer(ADD_GHOST_EVENT, 0)
+                  # 顯示爆炸畫面約 1 秒，讓玩家看到被炸到的瞬間
+                  for _ in range(10):
+                      screen.fill(black)
+                      wall_list.draw(screen)
+                      gate.draw(screen)
+                      all_sprites_list.draw(screen)
+                      for r2, ct, rot2 in cells:
+                          if ct == 'center' and _expl_center:
+                              screen.blit(_expl_center, r2)
+                          elif ct == 'mid' and _expl_mid:
+                              screen.blit(pygame.transform.rotate(_expl_mid, rot2), r2)
+                          elif ct == 'end' and _expl_end:
+                              screen.blit(pygame.transform.rotate(_expl_end, rot2), r2)
+                          else:
+                              pygame.draw.rect(screen, (255, 200, 0), r2)
+                      pygame.display.flip()
+                      clock.tick(10)
+                  doNext("Game Over", 235, all_sprites_list, block_list, monsta_list, pacman_collide, wall_list, gate)
+                  return
+
+      # 左 Ctrl 放炸彈（不受中文輸入法攔截，Windows/Mac 皆適用）
+      keys = pygame.key.get_pressed()
+      if keys[pygame.K_LCTRL] and not space_held:
+          if Pacman.bomb_count > 0:
+              new_bomb = Bomb(Pacman.rect.left, Pacman.rect.top)
+              bomb_list.add(new_bomb)
+              all_sprites_list.add(new_bomb)
+              Pacman.bomb_count -= 1
+          space_held = True
+      elif not keys[pygame.K_LCTRL]:
+          space_held = False
+
       # 更新所有在列表裡的鬼魂 (不管是初始的還是後來生成的)
       for monsta in monsta_list:
           monsta.update(wall_list, False)
-
-      # 更新炸彈並檢查爆炸傷害
-      for bomb in list(bomb_list):
-          bomb.update(wall_list)
-          if bomb.exploded:
-              explosion_rects = bomb.get_explosion_rects(wall_list)
-              for ghost in list(monsta_list):
-                  for rect in explosion_rects:
-                      if ghost.rect.colliderect(rect):
-                          ghost.kill()
-                          break
-              pacman_hit = any(Pacman.rect.colliderect(rect) for rect in explosion_rects)
-              bomb.kill()
-              Pacman.bomb_count += 1
-              if pacman_hit:
-                  pygame.time.set_timer(ADD_GHOST_EVENT, 0)
-                  doNext("Game Over",235,all_sprites_list,block_list,monsta_list,pacman_collide,wall_list,gate)
 
       # See if the Pacman block has collided with anything.
       blocks_hit_list = pygame.sprite.spritecollide(Pacman, block_list, True)
@@ -477,16 +565,30 @@ def startGame():
    
       # ALL CODE TO DRAW SHOULD GO BELOW THIS COMMENT
       screen.fill(black)
-        
       wall_list.draw(screen)
       gate.draw(screen)
       all_sprites_list.draw(screen)
       monsta_list.draw(screen)
 
-      text=font.render("Score: "+str(score)+"/"+str(bll), True, red)
+      # 繪製爆炸效果（持續 5 幀）
+      next_active = []
+      for cells, frames in active_explosions:
+          for r, cell_type, rot in cells:
+              if cell_type == 'center' and _expl_center:
+                  screen.blit(_expl_center, r)
+              elif cell_type == 'mid' and _expl_mid:
+                  screen.blit(pygame.transform.rotate(_expl_mid, rot), r)
+              elif cell_type == 'end' and _expl_end:
+                  screen.blit(pygame.transform.rotate(_expl_end, rot), r)
+              else:
+                  pygame.draw.rect(screen, (255, 200, 0), r)
+          if frames > 1:
+              next_active.append((cells, frames - 1))
+      active_explosions = next_active
+
+      stats_text = "Score: " + str(score) + "/" + str(bll) + "  Bombs: " + str(Pacman.bomb_count)
+      text = font.render(stats_text, True, red)
       screen.blit(text, [10, 10])
-      bomb_text = font.render("Bombs: "+str(Pacman.bomb_count), True, yellow)
-      screen.blit(bomb_text, [10, 35])
 
       if score == bll:
         pygame.time.set_timer(ADD_GHOST_EVENT, 0) # 遊戲結束時停止計時器
