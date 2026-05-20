@@ -1,514 +1,338 @@
-#Pacman in Python with PyGame
-#https://github.com/hbokmann/Pacman
-  
 import pygame
 import sys
 import random
-  
+
+# --- 顏色設定 ---
 black = (0,0,0)
 white = (255,255,255)
 blue = (0,0,255)
 green = (0,255,0)
 red = (255,0,0)
 purple = (255,0,255)
-yellow   = ( 255, 255,   0)
+yellow = (255, 255, 0)
+orange = (255, 165, 0)
+cyan = (0, 255, 255)
 
-# 設定鬼魂數量上限
 MAX_GHOSTS = 8
+POWER_DURATION = 50 # 50 幀 (約 5 秒)
 
-try:
-    Trollicon=pygame.image.load('images/Trollman.png')
-    pygame.display.set_icon(Trollicon)
-except pygame.error:
-    pass # 忽略找不到圖標的錯誤
-
-#Add music
+# --- 基礎初始化 ---
+pygame.init()
 pygame.mixer.init()
+screen = pygame.display.set_mode([606, 606])
+pygame.display.set_caption('Pacman - Bomb & Powerups')
+clock = pygame.time.Clock()
+
+# --- 資源載入 (包含原始炸彈音效) ---
 try:
-    pygame.mixer.music.load('pacman.mp3')
+    bomb_sound = pygame.mixer.Sound('sounds/bomb_sound.mp3')
+    sfx_powerup = pygame.mixer.Sound('sounds/powerup.wav')
+    sfx_freeze = pygame.mixer.Sound('sounds/freeze.wav')
+    sfx_eat = pygame.mixer.Sound('sounds/eat_ghost.wav')
+    pygame.mixer.music.load('sounds/pacman.mp3')
     pygame.mixer.music.play(-1, 0.0)
-except pygame.error:
-    pass # 忽略找不到音樂的錯誤
+except:
+    bomb_sound = sfx_powerup = sfx_freeze = sfx_eat = None
 
-# This class represents the bar at the bottom that the player controls
-class Wall(pygame.sprite.Sprite):
-    # Constructor function
-    def __init__(self,x,y,width,height, color):
-        # Call the parent's constructor
-        pygame.sprite.Sprite.__init__(self)
-  
-        # Make a blue wall, of the size specified in the parameters
-        self.image = pygame.Surface([width, height])
-        self.image.fill(color)
-  
-        # Make our top-left corner the passed-in location.
-        self.rect = self.image.get_rect()
-        self.rect.top = y
-        self.rect.left = x
+# --- 爆炸視覺素材 ---
+try:
+    _expl_center = pygame.transform.scale(pygame.image.load('images/explosion_center.png').convert_alpha(), (30, 30))
+    _expl_mid    = pygame.transform.scale(pygame.image.load('images/explosion_mid.png').convert_alpha(), (30, 30))
+    _expl_end    = pygame.transform.scale(pygame.image.load('images/explosion_end.png').convert_alpha(), (30, 30))
+except:
+    _expl_center = _expl_mid = _expl_end = None
 
-# This creates all the walls in room 1
-def setupRoomOne(all_sprites_list):
-    # Make the walls. (x_pos, y_pos, width, height)
-    wall_list=pygame.sprite.Group()
-     
-    # This is a list of walls. Each is in the form [x, y, width, height]
-    walls = [ [0,0,6,600],
-              [0,0,600,6],
-              [0,600,606,6],
-              [600,0,6,606],
-              [300,0,6,66],
-              [60,60,186,6],
-              [360,60,186,6],
-              [60,120,66,6],
-              [60,120,6,126],
-              [180,120,246,6],
-              [300,120,6,66],
-              [480,120,66,6],
-              [540,120,6,126],
-              [120,180,126,6],
-              [120,180,6,126],
-              [360,180,126,6],
-              [480,180,6,126],
-              [180,240,6,126],
-              [180,360,246,6],
-              [420,240,6,126],
-              [240,240,42,6],
-              [324,240,42,6],
-              [240,240,6,66],
-              [240,300,126,6],
-              [360,240,6,66],
-              [0,300,66,6],
-              [540,300,66,6],
-              [60,360,66,6],
-              [60,360,6,186],
-              [480,360,66,6],
-              [540,360,6,186],
-              [120,420,366,6],
-              [120,420,6,66],
-              [480,420,6,66],
-              [180,480,246,6],
-              [300,480,6,66],
-              [120,540,126,6],
-              [360,540,126,6]
-            ]
-     
-    # Loop through the list. Create the wall, add it to the list
-    for item in walls:
-        wall=Wall(item[0],item[1],item[2],item[3],blue)
-        wall_list.add(wall)
-        all_sprites_list.add(wall)
-         
-    # return our new list
-    return wall_list
+# --- 類別定義 ---
 
-def setupGate(all_sprites_list):
-      gate = pygame.sprite.Group()
-      gate.add(Wall(282,242,42,2,white))
-      all_sprites_list.add(gate)
-      return gate
-
-# This class represents the ball        
-# It derives from the "Sprite" class in Pygame
-class Block(pygame.sprite.Sprite):
-     
-    # Constructor. Pass in the color of the block, 
-    # and its x and y position
-    def __init__(self, color, width, height):
-        # Call the parent class (Sprite) constructor
-        pygame.sprite.Sprite.__init__(self) 
- 
-        # Create an image of the block, and fill it with a color.
-        # This could also be an image loaded from the disk.
-        self.image = pygame.Surface([width, height])
-        self.image.fill(white)
-        self.image.set_colorkey(white)
-        pygame.draw.ellipse(self.image,color,[0,0,width,height])
- 
-        # Fetch the rectangle object that has the dimensions of the image
-        # image.
-        # Update the position of this object by setting the values 
-        # of rect.x and rect.y
-        self.rect = self.image.get_rect() 
-
-# This class represents the bar at the bottom that the player controls
-class Player(pygame.sprite.Sprite):
-  
-    # Set speed vector
-    change_x=0
-    change_y=0
-  
-    # Constructor function
-    def __init__(self,x,y, filename):
-        # Call the parent's constructor
-        pygame.sprite.Sprite.__init__(self)
-   
-        # Set height, width
+class Bomb(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.timer = 50 
+        self.exploded = False
         try:
-            self.image = pygame.image.load(filename).convert()
-        except pygame.error:
-            # 支援現代化環境：若無圖片素材，改用黃色方塊代替
-            self.image = pygame.Surface([30, 30])
-            self.image.fill(yellow)
-  
-        # Make our top-left corner the passed-in location.
-        self.rect = self.image.get_rect()
-        self.rect.top = y
-        self.rect.left = x
-        self.prev_x = x
-        self.prev_y = y
+            self._img_normal = pygame.transform.scale(pygame.image.load('images/bomb.png').convert_alpha(), (30, 30))
+            self._img_flash  = pygame.transform.scale(pygame.image.load('images/bomb_flash.png').convert_alpha(), (30, 30))
+        except:
+            self._img_normal = pygame.Surface([30, 30]); self._img_normal.fill((80,80,80))
+            self._img_flash = pygame.Surface([30, 30]); self._img_flash.fill(red)
+        self.image = self._img_normal
+        self.rect = self.image.get_rect(topleft=(x, y))
 
-    # Clear the speed of the player
-    def prevdirection(self):
-        self.prev_x = self.change_x
-        self.prev_y = self.change_y
-
-    # Change the speed of the player
-    def changespeed(self,x,y):
-        self.change_x+=x
-        self.change_y+=y
-          
-    # Find a new position for the player
-    def update(self,walls,gate):
-        # Get the old position, in case we need to go back to it
-        
-        old_x=self.rect.left
-        new_x=old_x+self.change_x
-        prev_x=old_x+self.prev_x
-        self.rect.left = new_x
-        
-        old_y=self.rect.top
-        new_y=old_y+self.change_y
-        prev_y=old_y+self.prev_y
-
-        # Did this update cause us to hit a wall?
-        x_collide = pygame.sprite.spritecollide(self, walls, False)
-        if x_collide:
-            # Whoops, hit a wall. Go back to the old position
-            self.rect.left=old_x
-            # self.rect.top=prev_y
-            # y_collide = pygame.sprite.spritecollide(self, walls, False)
-            # if y_collide:
-            #     # Whoops, hit a wall. Go back to the old position
-            #     self.rect.top=old_y
-            #     print('a')
+    def update(self, wall_list):
+        if self.timer > 0:
+            self.timer -= 1
+            if self.timer < 10:
+                self.image = self._img_flash if (self.timer // 3) % 2 == 0 else self._img_normal
         else:
+            self.exploded = True
 
-            self.rect.top = new_y
+    def get_explosion_cells(self, wall_list):
+        cells = []
+        cx, cy, cell = self.rect.left, self.rect.top, 30
+        cells.append((pygame.Rect(cx, cy, cell, cell), 'center', 0))
+        for rot, dx, dy in [(0, 1, 0), (180, -1, 0), (-90, 0, 1), (90, 0, -1)]:
+            for step in range(1, 21):
+                r = pygame.Rect(cx + dx*cell*step, cy + dy*cell*step, cell, cell)
+                if not screen.get_rect().contains(r) or any(r.colliderect(w.rect) for w in wall_list):
+                    break
+                cells.append((r, 'mid', rot))
+        return cells
 
-            # Did this update cause us to hit a wall?
-            y_collide = pygame.sprite.spritecollide(self, walls, False)
-            if y_collide:
-                # Whoops, hit a wall. Go back to the old position
-                self.rect.top=old_y
-                # self.rect.left=prev_x
-                # x_collide = pygame.sprite.spritecollide(self, walls, False)
-                # if x_collide:
-                #     # Whoops, hit a wall. Go back to the old position
-                #     self.rect.left=old_x
-                #     print('b')
+class PowerUp(pygame.sprite.Sprite):
+    def __init__(self, x, y, p_type):
+        super().__init__()
+        self.type = p_type
+        try:
+            img_file = 'images/star.png' if p_type == 'star' else 'images/ice.png'
+            self.image = pygame.transform.scale(pygame.image.load(img_file).convert_alpha(), (25, 25))
+        except:
+            self.image = pygame.Surface([20, 20])
+            self.image.fill(orange if p_type == 'star' else cyan)
+        self.rect = self.image.get_rect(center=(x, y))
 
-        if gate != False:
-          gate_hit = pygame.sprite.spritecollide(self, gate, False)
-          if gate_hit:
-            self.rect.left=old_x
-            self.rect.top=old_y
+class Wall(pygame.sprite.Sprite):
+    def __init__(self,x,y,width,height, color):
+        super().__init__()
+        self.image = pygame.Surface([width, height]); self.image.fill(color)
+        self.rect = self.image.get_rect(topleft=(x, y))
 
-#Inheritime Player klassist
+class Block(pygame.sprite.Sprite):
+    def __init__(self, color, width, height):
+        super().__init__() 
+        self.image = pygame.Surface([width, height], pygame.SRCALPHA)
+        pygame.draw.ellipse(self.image, color, [0,0,width,height])
+        self.rect = self.image.get_rect()
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self, x, y, filename):
+        super().__init__()
+        self.bomb_count = 3
+        try:
+            self.image_normal = pygame.image.load(filename).convert_alpha()
+            self.image_normal = pygame.transform.scale(self.image_normal, (30, 30))
+        except:
+            self.image_normal = pygame.Surface([30, 30]); self.image_normal.fill(yellow)
+        self.image = self.image_normal
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.change_x = self.change_y = 0
+
+    def changespeed(self, x, y):
+        self.change_x += x; self.change_y += y
+
+    def update(self, walls, gate, invincible=False):
+        if invincible and (pygame.time.get_ticks() // 200) % 2 == 0:
+            self.image = pygame.Surface([30, 30]); self.image.fill(orange)
+        else:
+            self.image = self.image_normal
+        
+        old_x, old_y = self.rect.topleft
+        self.rect.left += self.change_x
+        if pygame.sprite.spritecollide(self, walls, False) or (gate and pygame.sprite.spritecollide(self, gate, False)):
+            self.rect.left = old_x
+        self.rect.top += self.change_y
+        if pygame.sprite.spritecollide(self, walls, False) or (gate and pygame.sprite.spritecollide(self, gate, False)):
+            self.rect.top = old_y
+
 class Ghost(Player):
     def __init__(self, x, y, filename):
         super().__init__(x, y, filename)
-        # 初始化時給予隨機初始方向與計步器
-        self.steps_taken = 0
-        dirs = [(15,0), (-15,0), (0,15), (0,-15)]
-        self.change_x, self.change_y = random.choice(dirs)
+        self.change_x, self.change_y = 15, 0
+        self.steps = 0
 
-    def update(self, walls, gate=False):
-        old_x = self.rect.left
-        old_y = self.rect.top
-        self.rect.left += self.change_x
-        self.rect.top += self.change_y
-
-        collide = pygame.sprite.spritecollide(self, walls, False)
-        if gate:
-            collide_gate = pygame.sprite.spritecollide(self, gate, False)
-            if collide_gate:
-                collide.extend(collide_gate)
-
-        self.steps_taken += 1
-
-        # AI 隨機漫步邏輯：當碰到牆壁，或是走了一段距離後隨機轉彎，增加多變性
-        if collide or self.steps_taken > random.randint(15, 60):
-            if collide:
-                # 碰到牆壁先復原位置
-                self.rect.left = old_x
-                self.rect.top = old_y
-
-            # 尋找新的可走方向
+    def update(self, walls, gate, frozen=False):
+        if frozen: return 
+        old_x, old_y = self.rect.topleft
+        self.rect.left += self.change_x; self.rect.top += self.change_y
+        self.steps += 1
+        if pygame.sprite.spritecollide(self, walls, False) or self.steps > random.randint(15, 60):
+            self.rect.topleft = (old_x, old_y)
             dirs = [(15,0), (-15,0), (0,15), (0,-15)]
-            random.shuffle(dirs) # 隨機打亂方向測試順序
-            
+            random.shuffle(dirs)
             for dx, dy in dirs:
-                # 模擬移動一步來測試是否會撞牆
-                self.rect.left = old_x + dx
-                self.rect.top = old_y + dy
-                if not pygame.sprite.spritecollide(self, walls, False) and not (gate and pygame.sprite.spritecollide(self, gate, False)):
-                    # 找到可以走的路，更新方向
-                    self.change_x = dx
-                    self.change_y = dy
-                    self.steps_taken = 0
-                    self.rect.left = old_x
-                    self.rect.top = old_y
+                self.rect.left, self.rect.top = old_x + dx, old_y + dy
+                if not pygame.sprite.spritecollide(self, walls, False):
+                    self.change_x, self.change_y, self.steps = dx, dy, 0
+                    self.rect.topleft = (old_x, old_y)
                     break
-            else:
-                # 萬一四面楚歌卡死 (通常不會發生)，退回原位等下一幀
-                self.rect.left = old_x
-                self.rect.top = old_y
 
-# Call this function so the Pygame library can initialize itself
-pygame.init()
-  
-# Create an 606x606 sized screen
-screen = pygame.display.set_mode([606, 606])
+# --- 地圖建置 ---
+def setupRoomOne(all_sprites):
+    wall_list = pygame.sprite.Group()
+    walls = [[0,0,6,600],[0,0,600,6],[0,600,606,6],[600,0,6,606],[300,0,6,66],[60,60,186,6],[360,60,186,6],[60,120,66,6],[60,120,6,126],[180,120,246,6],[300,120,6,66],[480,120,66,6],[540,120,6,126],[120,180,126,6],[120,180,6,126],[360,180,126,6],[480,180,6,126],[180,240,6,126],[180,360,246,6],[420,240,6,126],[240,240,42,6],[324,240,42,6],[240,240,6,66],[240,300,126,6],[360,240,6,66],[0,300,66,6],[540,300,66,6],[60,360,66,6],[60,360,6,186],[480,360,66,6],[540,360,6,186],[120,420,366,6],[120,420,6,66],[480,420,6,66],[180,480,246,6],[300,480,6,66],[120,540,126,6],[360,540,126,6]]
+    for i in walls:
+        w = Wall(i[0],i[1],i[2],i[3],blue)
+        wall_list.add(w); all_sprites.add(w)
+    return wall_list
 
-# This is a list of 'sprites.' Each block in the program is
-# added to this list. The list is managed by a class called 'RenderPlain.'
+def doNext(message, left, all_sprites_list, block_list, monsta_list, wall_list, gate, total_blocks, score):
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+                if event.key == pygame.K_RETURN:
+                    startGame()
+                    return
 
+        # Grey background
+        w = pygame.Surface((400, 200))
+        w.set_alpha(10)
+        w.fill((128, 128, 128))
+        screen.blit(w, (100, 200))
 
-# Set the title of the window
-pygame.display.set_caption('Pacman')
+        # Won or lost
+        font_big = pygame.font.Font(None, 36)
+        text1 = font_big.render(message, True, white)
+        text1_rect = text1.get_rect(center=(300, 245))
+        screen.blit(text1, text1_rect)
 
-# Create a surface we can draw on
-background = pygame.Surface(screen.get_size())
+        text2 = font_big.render("To play again, press ENTER.", True, white)
+        text2_rect = text2.get_rect(center=(300, 290))
+        screen.blit(text2, text2_rect)
+        text3 = font_big.render("To quit, press ESCAPE.", True, white)
+        text3_rect = text3.get_rect(center=(300, 335))
+        screen.blit(text3, text3_rect)
 
-# Used for converting color maps and such
-background = background.convert()
-  
-# Fill the screen with a black background
-background.fill(black)
-
-
-
-clock = pygame.time.Clock()
-
-pygame.font.init()
-try:
-    font = pygame.font.Font("freesansbold.ttf", 24)
-except OSError:
-    # 如果找不到 freesansbold.ttf，自動退回使用系統預設字體
-    font = pygame.font.Font(None, 24)
-
-#default locations for Pacman and monstas
-w = 303-16 #Width
-p_h = (7*60)+19 #Pacman height
+        pygame.display.flip()
+        clock.tick(10)
 
 def startGame():
-
-  all_sprites_list = pygame.sprite.Group()
-
-  block_list = pygame.sprite.Group()
-
-  monsta_list = pygame.sprite.Group()
-
-  pacman_collide = pygame.sprite.Group()
-
-  wall_list = setupRoomOne(all_sprites_list)
-
-  gate = setupGate(all_sprites_list)
-
-  # Create the player paddle object
-  Pacman = Player( w, p_h, "images/Trollman.png" )
-  all_sprites_list.add(Pacman)
-  pacman_collide.add(Pacman)
-
-  # 準備存放鬼魂可以隨機生成的合法座標
-  valid_spawn_points = []
-
-  # Draw the grid
-  for row in range(19):
-      for column in range(19):
-          if (row == 7 or row == 8) and (column == 8 or column == 9 or column == 10):
-              continue
-          else:
-            block = Block(yellow, 4, 4)
-
-            # Set a random location for the block
-            block.rect.x = (30*column+6)+26
-            block.rect.y = (30*row+6)+26
-
-            b_collide = pygame.sprite.spritecollide(block, wall_list, False)
-            p_collide = pygame.sprite.spritecollide(block, pacman_collide, False)
-            if b_collide:
-              continue
-            elif p_collide:
-              continue
-            else:
-              # Add the block to the list of objects
-              block_list.add(block)
-              all_sprites_list.add(block)
-              
-              # 收集鬼魂合法的生成座標 (將豆子座標微調到置中)
-              ghost_x = block.rect.x - 13
-              ghost_y = block.rect.y - 13
-              # 確保首波鬼魂的生成位置不要離玩家太近 (安全距離大於100像素)
-              if abs(ghost_x - w) > 100 or abs(ghost_y - p_h) > 100:
-                  valid_spawn_points.append((ghost_x, ghost_y))
-
-  bll = len(block_list)
-
-  # 隨機打亂並挑選 4 個生成位置給初始的 4 隻鬼魂
-  random.shuffle(valid_spawn_points)
-  spawns = valid_spawn_points[:4]
-   
-  Blinky=Ghost( spawns[0][0], spawns[0][1], "images/Blinky.png" )
-  monsta_list.add(Blinky)
-  all_sprites_list.add(Blinky)
-
-  Pinky=Ghost( spawns[1][0], spawns[1][1], "images/Pinky.png" )
-  monsta_list.add(Pinky)
-  all_sprites_list.add(Pinky)
-   
-  Inky=Ghost( spawns[2][0], spawns[2][1], "images/Inky.png" )
-  monsta_list.add(Inky)
-  all_sprites_list.add(Inky)
-   
-  Clyde=Ghost( spawns[3][0], spawns[3][1], "images/Clyde.png" )
-  monsta_list.add(Clyde)
-  all_sprites_list.add(Clyde)
-
-  score = 0
-  done = False
-  
-  # 設定定時器：每 15 秒 (15000 毫秒) 觸發一次新增鬼魂事件
-  ADD_GHOST_EVENT = pygame.USEREVENT + 1
-  pygame.time.set_timer(ADD_GHOST_EVENT, 15000)
-  
-  # 提供給隨機生成的鬼魂外觀選項
-  ghost_images = ["images/Blinky.png", "images/Pinky.png", "images/Inky.png", "images/Clyde.png"]
-
-  while done == False:
-      # ALL EVENT PROCESSING SHOULD GO BELOW THIS COMMENT
-      for event in pygame.event.get():
-          if event.type == pygame.QUIT:
-              done=True
-              
-          # 檢查是否觸發了增加鬼魂事件
-          if event.type == ADD_GHOST_EVENT:
-              if len(monsta_list) < MAX_GHOSTS:
-                  # 嘗試找一個遠離「當前」小精靈位置的安全生成點
-                  safe_points = []
-                  for pt in valid_spawn_points:
-                      dist_x = abs(pt[0] - Pacman.rect.left)
-                      dist_y = abs(pt[1] - Pacman.rect.top)
-                      if dist_x > 100 or dist_y > 100:
-                          safe_points.append(pt)
-                  
-                  # 如果有安全的生成點，就誕生一隻新鬼魂
-                  if safe_points:
-                      spawn_pt = random.choice(safe_points)
-                      img = random.choice(ghost_images)
-                      new_ghost = Ghost(spawn_pt[0], spawn_pt[1], img)
-                      monsta_list.add(new_ghost)
-                      all_sprites_list.add(new_ghost)
-
-          if event.type == pygame.KEYDOWN:
-              if event.key == pygame.K_LEFT:
-                  Pacman.changespeed(-30,0)
-              if event.key == pygame.K_RIGHT:
-                  Pacman.changespeed(30,0)
-              if event.key == pygame.K_UP:
-                  Pacman.changespeed(0,-30)
-              if event.key == pygame.K_DOWN:
-                  Pacman.changespeed(0,30)
-
-          if event.type == pygame.KEYUP:
-              if event.key == pygame.K_LEFT:
-                  Pacman.changespeed(30,0)
-              if event.key == pygame.K_RIGHT:
-                  Pacman.changespeed(-30,0)
-              if event.key == pygame.K_UP:
-                  Pacman.changespeed(0,30)
-              if event.key == pygame.K_DOWN:
-                  Pacman.changespeed(0,-30)
-          
-      # ALL EVENT PROCESSING SHOULD GO ABOVE THIS COMMENT
-   
-      # ALL GAME LOGIC SHOULD GO BELOW THIS COMMENT
-      Pacman.update(wall_list,gate)
-
-      # 更新所有在列表裡的鬼魂 (不管是初始的還是後來生成的)
-      for monsta in monsta_list:
-          monsta.update(wall_list, False)
-
-      # See if the Pacman block has collided with anything.
-      blocks_hit_list = pygame.sprite.spritecollide(Pacman, block_list, True)
-       
-      # Check the list of collisions.
-      if len(blocks_hit_list) > 0:
-          score +=len(blocks_hit_list)
-      
-      # ALL GAME LOGIC SHOULD GO ABOVE THIS COMMENT
-   
-      # ALL CODE TO DRAW SHOULD GO BELOW THIS COMMENT
-      screen.fill(black)
-        
-      wall_list.draw(screen)
-      gate.draw(screen)
-      all_sprites_list.draw(screen)
-      monsta_list.draw(screen)
-
-      text=font.render("Score: "+str(score)+"/"+str(bll), True, red)
-      screen.blit(text, [10, 10])
-
-      if score == bll:
-        pygame.time.set_timer(ADD_GHOST_EVENT, 0) # 遊戲結束時停止計時器
-        doNext("Congratulations, you won!",145,all_sprites_list,block_list,monsta_list,pacman_collide,wall_list,gate)
-
-      monsta_hit_list = pygame.sprite.spritecollide(Pacman, monsta_list, False)
-
-      if monsta_hit_list:
-        pygame.time.set_timer(ADD_GHOST_EVENT, 0) # 遊戲結束時停止計時器
-        doNext("Game Over",235,all_sprites_list,block_list,monsta_list,pacman_collide,wall_list,gate)
-
-      # ALL CODE TO DRAW SHOULD GO ABOVE THIS COMMENT
-      
-      pygame.display.flip()
+    all_sprites = pygame.sprite.Group()
+    block_list = pygame.sprite.Group()
+    monsta_list = pygame.sprite.Group()
+    bomb_list = pygame.sprite.Group()
+    power_list = pygame.sprite.Group()
     
-      clock.tick(10)
+    wall_list = setupRoomOne(all_sprites)
+    gate = pygame.sprite.Group()
+    gate.add(Wall(282,242,42,2,white))
+    all_sprites.add(gate)
+    Pacman = Player(287, 439, "images/Trollman.png"); all_sprites.add(Pacman)
+    
+    valid_points = []
+    for r in range(19):
+        for c in range(19):
+            if (r == 7 or r == 8) and (8 <= c <= 10): continue
+            b = Block(yellow, 4, 4); b.rect.x = (30*c+32); b.rect.y = (30*r+32)
+            if not pygame.sprite.spritecollide(b, wall_list, False):
+                block_list.add(b); all_sprites.add(b)
+                valid_points.append(b.rect.center)
 
-def doNext(message,left,all_sprites_list,block_list,monsta_list,pacman_collide,wall_list,gate):
-  while True:
-      # ALL EVENT PROCESSING SHOULD GO BELOW THIS COMMENT
-      for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-          pygame.quit()
-          sys.exit()
-        if event.type == pygame.KEYDOWN:
-          if event.key == pygame.K_ESCAPE:
-            pygame.quit()
-            sys.exit()
-          if event.key == pygame.K_RETURN:
-            startGame()
-            return # 離開這個迴圈，避免堆疊過深
+    ghost_imgs = ["images/Blinky.png", "images/Pinky.png", "images/Inky.png", "images/Clyde.png"]
+    for i in range(4):
+        pt = random.choice(valid_points)
+        # 调整初始位置计算，避免偏差
+        ghost_x = pt[0] - 15
+        ghost_y = pt[1] - 15
+        g = Ghost(int(ghost_x), int(ghost_y), ghost_imgs[i]); monsta_list.add(g); all_sprites.add(g)
 
-      #Grey background
-      w = pygame.Surface((400,200))  # the size of your rect
-      w.set_alpha(10)                # alpha level
-      w.fill((128,128,128))           # this fills the entire surface
-      screen.blit(w, (100,200))    # (0,0) are the top-left coordinates
+    ADD_GHOST = pygame.USEREVENT + 1; pygame.time.set_timer(ADD_GHOST, 15000)
+    ADD_POWER = pygame.USEREVENT + 2; pygame.time.set_timer(ADD_POWER, 8000)
 
-      #Won or lost
-      text1=font.render(message, True, white)
-      screen.blit(text1, [left, 233])
+    total_blocks = len(block_list)
+    score = 0; inv_timer = 0; froz_timer = 0
+    active_explosions = []; space_held = False
+    font = pygame.font.Font(None, 32)
 
-      text2=font.render("To play again, press ENTER.", True, white)
-      screen.blit(text2, [135, 303])
-      text3=font.render("To quit, press ESCAPE.", True, white)
-      screen.blit(text3, [165, 333])
+    while True:
+        is_inv = inv_timer > 0; is_froz = froz_timer > 0
+        if inv_timer > 0: inv_timer -= 1
+        if froz_timer > 0: froz_timer -= 1
 
-      pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == ADD_POWER and len(power_list) < 3:
+                pt = random.choice(valid_points)
+                p = PowerUp(pt[0], pt[1], random.choice(['star', 'ice']))
+                power_list.add(p); all_sprites.add(p)
+            if event.type == ADD_GHOST and len(monsta_list) < MAX_GHOSTS:
+                pt = random.choice(valid_points)
+                g = Ghost(pt[0]-15, pt[1]-15, random.choice(ghost_imgs)); monsta_list.add(g); all_sprites.add(g)
+            
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFT: Pacman.changespeed(-30,0)
+                if event.key == pygame.K_RIGHT: Pacman.changespeed(30,0)
+                if event.key == pygame.K_UP: Pacman.changespeed(0,-30)
+                if event.key == pygame.K_DOWN: Pacman.changespeed(0,30)
+            if event.type == pygame.KEYUP:
+                if event.key == pygame.K_LEFT: Pacman.changespeed(30,0)
+                if event.key == pygame.K_RIGHT: Pacman.changespeed(-30,0)
+                if event.key == pygame.K_UP: Pacman.changespeed(0,30)
+                if event.key == pygame.K_DOWN: Pacman.changespeed(0,-30)
 
-      clock.tick(10)
+        # 炸彈邏輯 (左 Ctrl)
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LCTRL] and not space_held and Pacman.bomb_count > 0:
+            b = Bomb(Pacman.rect.left, Pacman.rect.top); bomb_list.add(b); all_sprites.add(b)
+            Pacman.bomb_count -= 1; space_held = True
+        if not keys[pygame.K_LCTRL]: space_held = False
 
-startGame()
+        Pacman.update(wall_list, gate, is_inv)
+        for g in monsta_list: g.update(wall_list, gate, is_froz)
+        
+        # 炸彈爆炸判定與音效
+        for b in list(bomb_list):
+            b.update(wall_list)
+            if b.exploded:
+                if bomb_sound: bomb_sound.play() # 炸彈音效在此播放
+                cells = b.get_explosion_cells(wall_list)
+                active_explosions.append((cells, 5))
+                for r, _, _ in cells:
+                    for g in list(monsta_list):
+                        if g.rect.colliderect(r): g.kill(); score += 50
+                    if Pacman.rect.colliderect(r) and not is_inv: return # 炸死
+                b.kill()
 
-pygame.quit()
+        # 道具碰撞與音效
+        p_hits = pygame.sprite.spritecollide(Pacman, power_list, True)
+        for p in p_hits:
+            if sfx_powerup: sfx_powerup.play()
+            if p.type == 'star': inv_timer = POWER_DURATION
+            if p.type == 'ice': 
+                froz_timer = POWER_DURATION
+                if sfx_freeze: sfx_freeze.play()
+
+        score += len(pygame.sprite.spritecollide(Pacman, block_list, True))
+        
+        # 鬼魂碰撞
+        m_hits = pygame.sprite.spritecollide(Pacman, monsta_list, False)
+        if m_hits:
+            if is_inv:
+                for m in m_hits: 
+                    m.kill(); score += 100
+                    if sfx_eat: sfx_eat.play()
+            else: doNext("Game Over", 235, all_sprites, block_list, monsta_list, wall_list, gate, total_blocks, score) 
+
+        # 繪製
+        screen.fill(black)
+        all_sprites.draw(screen)
+        
+        # DEBUG: 顯示碰撞框 (可視化調試)
+        # pygame.draw.rect(screen, green, Pacman.rect, 2)  # Pacman碰撞框
+        # for g in monsta_list: pygame.draw.rect(screen, red, g.rect, 2)  # Ghost碰撞框
+        
+        # 繪製爆炸效果
+        for cells, frames in list(active_explosions):
+            for r, ct, rot in cells:
+                if ct == 'center' and _expl_center: screen.blit(_expl_center, r)
+                elif ct == 'mid' and _expl_mid: screen.blit(pygame.transform.rotate(_expl_mid, rot), r)
+                else: pygame.draw.rect(screen, (255, 200, 0), r)
+            idx = active_explosions.index((cells, frames))
+            if frames > 1: active_explosions[idx] = (cells, frames - 1)
+            else: active_explosions.pop(idx)
+
+        # 顯示文字
+        s_text = font.render(f"Score: {score}/{total_blocks}  Bombs: {Pacman.bomb_count}", True, red)
+        screen.blit(s_text, [10, 10])
+        if is_inv: screen.blit(font.render("INVINCIBLE!", True, orange), [250, 10])
+        if is_froz: screen.blit(font.render("GHOSTS FROZEN!", True, cyan), [400, 10])
+        
+        pygame.display.flip()
+        clock.tick(10)
+
+if __name__ == "__main__":
+    while True: startGame()
