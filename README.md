@@ -1,39 +1,31 @@
-### Pacman in Python with PyGame
+# Pacman in Python with PyGame
 
-Pacman/
-├── pacman.py
-├── images/
-├── sounds/
-└── 
+This project is a small Pacman-style game built with `pygame`.
 
+## Main Entry
 
-This is a very minimal implementation of the Pacman game, having only one level and without ghosts strategy, not even with random movements (yes, the routes are programmed). However, we may improve this game in the future and everyone else interested can feel free to fork and contribute to this project.
+Run the current version with:
 
-Download installer from here: https://github.com/hbokmann/Pacman/blob/master/pacman.exe
+```powershell
+python pacman.py
+```
 
-![Pacman Game Window](https://raw.github.com/hbokmann/Pacman/master/images/pacman.jpg)
+`pacman.py` is the maintained entry point. `pacman修改.py` and `增加道具` are older or experimental copies kept in the repository for reference.
 
+## Current Features
 
-# Future development
+- One maze level with pellets
+- Four starting ghosts, with more ghosts added over time
+- Bombs using Left Ctrl
+- Star power-up for temporary invincibility
+- Ice power-up for temporary ghost freeze
+- Sound effects and background music
+- Restart screen after winning or losing
 
-* Fix Pacman's movement
-* Ghosts moving algorithm and artificial intelligence
-* Better design
-* Better algorithm for the walls
-* Additional levels?
+## Assets
 
+Images live in `images/`, sounds live in `sounds/`, and `freesansbold.ttf` is included for font support.
 
-Tested with [PyGame 1.9](http://pygame.org/ftp/pygame-1.9.2a0.win32-py3.2.msi ) and [Python 3.2 32bit](http://www.python.org/ftp/python/3.2.3/python-3.2.3.msi)
+## Notes
 
-
-### Additional resources
-* [Pac-Man Dossier - strategy of the ghosts movement](http://home.comcast.net/~jpittman2/pacman/pacmandossier.html)
-* [HTML5 Pacman](http://arandomurl.com/2010/07/25/html5-pacman.html)
-* [PyGame tutorials](http://programarcadegames.com/index.php?lang=en)
-* [How To Write a Pacman Game in JavaScript](http://www.masswerk.at/JavaPac/pacman-howto.html)
-* [Original Pacman game](http://originalpacman.com/)
-
-
-
-### Support or Contact
-Twitter: https://twitter.com/hbokmann
+The game now resolves assets relative to the project folder, so it can be launched from another working directory without losing images or sounds.
