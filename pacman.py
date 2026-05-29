@@ -84,7 +84,7 @@ class PowerUp(pygame.sprite.Sprite):
         self.type = p_type
         try:
             img_file = 'images/star.png' if p_type == 'star' else 'images/ice.png'
-            self.image = pygame.transform.scale(pygame.image.load(img_file).convert_alpha(), (25, 25))
+            self.image = pygame.transform.scale(pygame.image.load(img_file).convert_alpha(), (40, 40))
         except:
             self.image = pygame.Surface([20, 20])
             self.image.fill(orange if p_type == 'star' else cyan)
@@ -112,18 +112,53 @@ class Player(pygame.sprite.Sprite):
             self.image_normal = pygame.transform.scale(self.image_normal, (30, 30))
         except:
             self.image_normal = pygame.Surface([30, 30]); self.image_normal.fill(yellow)
+        
+        # 預先生成不同顏色的Pacman版本用於無敵時閃爍
+        self.image_colors = [self.image_normal]  # 原色 (黃色)
+        for color in [red, blue, purple, cyan]:  # 紅、藍、紫、青
+            colored_img = self.image_normal.copy()
+            colored_img.fill(color, special_flags=pygame.BLEND_RGB_MULT)
+            self.image_colors.append(colored_img)
+        
         self.image = self.image_normal
         self.rect = self.image.get_rect(topleft=(x, y))
         self.change_x = self.change_y = 0
+        self.direction = (1, 0)  # 預設面向右邊
 
     def changespeed(self, x, y):
         self.change_x += x; self.change_y += y
 
+    def set_direction(self, x, y):
+        """只用來設置方向 (按鍵時調用)"""
+        if x != 0:
+            self.direction = (x // abs(x), 0) if x != 0 else (0, 0)
+        elif y != 0:
+            self.direction = (0, y // abs(y)) if y != 0 else (0, 0)
+
+    def get_rotated_image(self, image, direction):
+        """根據方向旋轉圖像"""
+        dx, dy = direction
+        # (1,0)右=0°, (-1,0)左=180°, (0,-1)上=90°, (0,1)下=270°
+        if dx == 1:  # 右
+            return pygame.transform.rotate(image, 0)
+        elif dx == -1:  # 左
+            return pygame.transform.rotate(image, 180)
+        elif dy == -1:  # 上
+            return pygame.transform.rotate(image, 90)
+        elif dy == 1:  # 下
+            return pygame.transform.rotate(image, 270)
+        return image
+
     def update(self, walls, gate, invincible=False):
-        if invincible and (pygame.time.get_ticks() // 200) % 2 == 0:
-            self.image = pygame.Surface([30, 30]); self.image.fill(orange)
+        if invincible:
+            # 無敵時快速切換顏色 (每100ms切換一次，共5種顏色)
+            color_idx = (pygame.time.get_ticks() // 100) % len(self.image_colors)
+            base_image = self.image_colors[color_idx]
         else:
-            self.image = self.image_normal
+            base_image = self.image_normal
+        
+        # 根據方向旋轉圖像
+        self.image = self.get_rotated_image(base_image, self.direction)
         
         old_x, old_y = self.rect.topleft
         self.rect.left += self.change_x
@@ -211,7 +246,7 @@ def startGame():
     gate = pygame.sprite.Group()
     gate.add(Wall(282,242,42,2,white))
     all_sprites.add(gate)
-    Pacman = Player(287, 439, "images/Trollman.png"); all_sprites.add(Pacman)
+    Pacman = Player(287, 439, "images/pacman.png"); all_sprites.add(Pacman)
     
     valid_points = []
     for r in range(19):
@@ -254,10 +289,18 @@ def startGame():
                 g = Ghost(pt[0]-15, pt[1]-15, random.choice(ghost_imgs)); monsta_list.add(g); all_sprites.add(g)
             
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT: Pacman.changespeed(-30,0)
-                if event.key == pygame.K_RIGHT: Pacman.changespeed(30,0)
-                if event.key == pygame.K_UP: Pacman.changespeed(0,-30)
-                if event.key == pygame.K_DOWN: Pacman.changespeed(0,30)
+                if event.key == pygame.K_LEFT: 
+                    Pacman.changespeed(-30,0)
+                    Pacman.set_direction(-30, 0)
+                if event.key == pygame.K_RIGHT: 
+                    Pacman.changespeed(30,0)
+                    Pacman.set_direction(30, 0)
+                if event.key == pygame.K_UP: 
+                    Pacman.changespeed(0,-30)
+                    Pacman.set_direction(0, -30)
+                if event.key == pygame.K_DOWN: 
+                    Pacman.changespeed(0,30)
+                    Pacman.set_direction(0, 30)
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_LEFT: Pacman.changespeed(30,0)
                 if event.key == pygame.K_RIGHT: Pacman.changespeed(-30,0)
@@ -328,8 +371,8 @@ def startGame():
         # 顯示文字
         s_text = font.render(f"Score: {score}/{total_blocks}  Bombs: {Pacman.bomb_count}", True, red)
         screen.blit(s_text, [10, 10])
-        if is_inv: screen.blit(font.render("INVINCIBLE!", True, orange), [250, 10])
-        if is_froz: screen.blit(font.render("GHOSTS FROZEN!", True, cyan), [400, 10])
+        if is_inv: screen.blit(font.render("INVINCIBLE!", True, orange), [280, 10])
+        if is_froz: screen.blit(font.render("GHOSTS FROZEN", True, cyan), [410, 10])
         
         pygame.display.flip()
         clock.tick(10)
