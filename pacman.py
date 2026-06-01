@@ -371,7 +371,7 @@ def startGame():
         # 顯示文字
         s_text = font.render(f"Score: {score}/{total_blocks}  Bombs: {Pacman.bomb_count}", True, red)
         screen.blit(s_text, [10, 10])
-        if is_inv: screen.blit(font.render("INVINCIBLE!", True, orange), [280, 10])
+        if is_inv: screen.blit(font.render("INVINCIBLE", True, orange), [280, 10])
         if is_froz: screen.blit(font.render("GHOSTS FROZEN", True, cyan), [410, 10])
         
         pygame.display.flip()

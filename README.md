@@ -1,39 +1,125 @@
-### Pacman in Python with PyGame
+# Pacman - Bomb & Powerups 
 
+一個使用 PyGame 開發的升級版 Pacman 遊戲，融合了炸彈和道具系統。
+
+## 遊戲特色 
+
+### 核心玩法
+-  **方向控制**：左右上下箭頭鍵控制 Pacman 移動
+-  **炸彈系統**：按 `Ctrl` 放置炸彈，炸彈在 50 幀後爆炸
+  - 爆炸會消滅範圍內的鬼魂（+50 分）
+  - 爆炸會傷害無敵狀態下的 Pacman
+-  **道具系統**：
+  - **星星** (Star)：獲得無敵狀態 5 秒，Pacman 快速閃爍彩色
+  - **冰塊** (Ice)：凍結所有鬼魂 5 秒
+
+### 視覺效果
+-  **智能幽靈**：8 隻最多幽靈同時出現，每隻有隨機移動路徑
+-  **方向旋轉**：Pacman 根據移動方向自動旋轉（上下左右）
+-  **無敵視效**：無敵時快速切換黃、紅、藍、紫、青五種顏色
+-  **爆炸動畫**：炸彈爆炸時的十字形爆炸效果
+
+### 音效系統 
+- 背景音樂
+- 吃豆子音效
+- 道具音效（星星、冰塊）
+- 炸彈爆炸音效
+- 吃掉鬼魂音效
+
+### 計分系統 
+- 吃豆子：+1 分
+- 炸死鬼魂：+50 分（普通）/ +100 分（無敵狀態下）
+- 目標：吃完所有豆子並存活
+
+## 操作方式 
+
+| 按鍵 | 功能 |
+|------|------|
+| ⬅️ ➡️ ⬆️ ⬇️ | 移動 Pacman |
+| `Ctrl` | 放置炸彈（最多 3 個） |
+| `Enter` | 遊戲結束時重新開始 |
+| `Esc` | 遊戲結束時退出 |
+
+## 安裝與運行 
+
+### 環境需求
+- Python 3.8+
+- PyGame 2.6.1+
+
+### 安裝步驟
+```bash
+# 1. 克隆或下載專案
+git clone https://github.com/chichichi959595/Pacman.git
+cd Pacman
+
+# 2. 創建虛擬環境
+python -m venv venv
+.\venv\Scripts\Activate.ps1  # Windows
+source venv/bin/activate      # Mac/Linux
+
+# 3. 安裝依賴
+pip install pygame
+
+# 4. 執行遊戲
+python pacman.py
+```
+
+## 專案結構 
+
+```
 Pacman/
-├── pacman.py
-├── images/
-├── sounds/
-└── 
+├── pacman.py              # 主遊戲檔案
+├── README.md              # 說明文檔
+├── images/                # 遊戲圖片資源
+│   ├── pacman.png
+│   ├── Blinky.png        # 紅色幽靈
+│   ├── Pinky.png         # 粉紅幽靈
+│   ├── Inky.png          # 藍色幽靈
+│   ├── Clyde.png         # 橘色幽靈
+│   ├── bomb.png          # 炸彈
+│   ├── bomb_flash.png    # 炸彈閃爍
+│   ├── star.png          # 星星道具
+│   ├── ice.png           # 冰塊道具
+│   └── explosion_*.png   # 爆炸效果
+└── sounds/                # 遊戲音效
+    ├── pacman.mp3        # 背景音樂
+    ├── powerup.wav       # 道具音效
+    ├── freeze.wav        # 冰凍音效
+    ├── eat_ghost.wav     # 吃鬼音效
+    └── bomb_sound.mp3    # 炸彈音效
+```
 
+## 遊戲界面 
 
-This is a very minimal implementation of the Pacman game, having only one level and without ghosts strategy, not even with random movements (yes, the routes are programmed). However, we may improve this game in the future and everyone else interested can feel free to fork and contribute to this project.
+- **分數顯示**：`Score: X/總豆子數  Bombs: 剩餘炸彈數`
+- **狀態指示**：
+  - 無敵時顯示「INVINCIBLE!」（橘色）
+  - 凍結時顯示「GHOSTS FROZEN!」（青色）
 
-Download installer from here: https://github.com/hbokmann/Pacman/blob/master/pacman.exe
+## 遊戲規則 
 
-![Pacman Game Window](https://raw.github.com/hbokmann/Pacman/master/images/pacman.jpg)
+1. 移動 Pacman 吃掉地圖上的所有豆子
+2. 避免接觸鬼魂（除非處於無敵狀態）
+3. 使用炸彈消滅鬼魂或自衛
+4. 道具隨機出現，收集來獲得特殊能力
+5. 吃完所有豆子或撞到鬼魂時遊戲結束
 
+## 功能 
 
-# Future development
+- Pacman 方向旋轉（上下左右）
+- 無敵狀態下的彩色閃爍效果
+- 炸彈放置與爆炸系統
+- 星星和冰塊道具
+- 鬼魂 AI（隨機尋路）
+- 音效和音樂系統
+- 爆炸動畫效果
+- 分數計算系統
 
-* Fix Pacman's movement
-* Ghosts moving algorithm and artificial intelligence
-* Better design
-* Better algorithm for the walls
-* Additional levels?
+## 技術棧 
 
+- **Python 3.8+**
+- **PyGame 2.6.1**
+- **Sprite 碰撞檢測**
+- **時間管理系統**
+- **事件驅動設計**
 
-Tested with [PyGame 1.9](http://pygame.org/ftp/pygame-1.9.2a0.win32-py3.2.msi ) and [Python 3.2 32bit](http://www.python.org/ftp/python/3.2.3/python-3.2.3.msi)
-
-
-### Additional resources
-* [Pac-Man Dossier - strategy of the ghosts movement](http://home.comcast.net/~jpittman2/pacman/pacmandossier.html)
-* [HTML5 Pacman](http://arandomurl.com/2010/07/25/html5-pacman.html)
-* [PyGame tutorials](http://programarcadegames.com/index.php?lang=en)
-* [How To Write a Pacman Game in JavaScript](http://www.masswerk.at/JavaPac/pacman-howto.html)
-* [Original Pacman game](http://originalpacman.com/)
-
-
-
-### Support or Contact
-Twitter: https://twitter.com/hbokmann
