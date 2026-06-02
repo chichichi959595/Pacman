@@ -1,31 +1,125 @@
-# Pacman in Python with PyGame
+# Pacman - Bomb & Powerups 
 
-This project is a small Pacman-style game built with `pygame`.
+一個使用 PyGame 開發的升級版 Pacman 遊戲，融合了炸彈和道具系統。
 
-## Main Entry
+## 遊戲特色 
 
-Run the current version with:
+### 核心玩法
+-  **方向控制**：左右上下箭頭鍵控制 Pacman 移動
+-  **炸彈系統**：按 `Ctrl` 放置炸彈，炸彈在 50 幀後爆炸
+  - 爆炸會消滅範圍內的鬼魂（+50 分）
+  - 爆炸會傷害無敵狀態下的 Pacman
+-  **道具系統**：
+  - **星星** (Star)：獲得無敵狀態 5 秒，Pacman 快速閃爍彩色
+  - **冰塊** (Ice)：凍結所有鬼魂 5 秒
 
-```powershell
+### 視覺效果
+-  **智能幽靈**：8 隻最多幽靈同時出現，每隻有隨機移動路徑
+-  **方向旋轉**：Pacman 根據移動方向自動旋轉（上下左右）
+-  **無敵視效**：無敵時快速切換黃、紅、藍、紫、青五種顏色
+-  **爆炸動畫**：炸彈爆炸時的十字形爆炸效果
+
+### 音效系統 
+- 背景音樂
+- 吃豆子音效
+- 道具音效（星星、冰塊）
+- 炸彈爆炸音效
+- 吃掉鬼魂音效
+
+### 計分系統 
+- 吃豆子：+1 分
+- 炸死鬼魂：+50 分（普通）/ +100 分（無敵狀態下）
+- 目標：吃完所有豆子並存活
+
+## 操作方式 
+
+| 按鍵 | 功能 |
+|------|------|
+| ⬅️ ➡️ ⬆️ ⬇️ | 移動 Pacman |
+| `Ctrl` | 放置炸彈（最多 3 個） |
+| `Enter` | 遊戲結束時重新開始 |
+| `Esc` | 遊戲結束時退出 |
+
+## 安裝與運行 
+
+### 環境需求
+- Python 3.8+
+- PyGame 2.6.1+
+
+### 安裝步驟
+```bash
+# 1. 克隆或下載專案
+git clone https://github.com/chichichi959595/Pacman.git
+cd Pacman
+
+# 2. 創建虛擬環境
+python -m venv venv
+.\venv\Scripts\Activate.ps1  # Windows
+source venv/bin/activate      # Mac/Linux
+
+# 3. 安裝依賴
+pip install pygame
+
+# 4. 執行遊戲
 python pacman.py
 ```
 
-`pacman.py` is the maintained entry point. `pacman修改.py` and `增加道具` are older or experimental copies kept in the repository for reference.
+## 專案結構 
 
-## Current Features
+```
+Pacman/
+├── pacman.py              # 主遊戲檔案
+├── README.md              # 說明文檔
+├── images/                # 遊戲圖片資源
+│   ├── pacman.png
+│   ├── Blinky.png        # 紅色幽靈
+│   ├── Pinky.png         # 粉紅幽靈
+│   ├── Inky.png          # 藍色幽靈
+│   ├── Clyde.png         # 橘色幽靈
+│   ├── bomb.png          # 炸彈
+│   ├── bomb_flash.png    # 炸彈閃爍
+│   ├── star.png          # 星星道具
+│   ├── ice.png           # 冰塊道具
+│   └── explosion_*.png   # 爆炸效果
+└── sounds/                # 遊戲音效
+    ├── pacman.mp3        # 背景音樂
+    ├── powerup.wav       # 道具音效
+    ├── freeze.wav        # 冰凍音效
+    ├── eat_ghost.wav     # 吃鬼音效
+    └── bomb_sound.mp3    # 炸彈音效
+```
 
-- One maze level with pellets
-- Four starting ghosts, with more ghosts added over time
-- Bombs using Left Ctrl
-- Star power-up for temporary invincibility
-- Ice power-up for temporary ghost freeze
-- Sound effects and background music
-- Restart screen after winning or losing
+## 遊戲界面 
 
-## Assets
+- **分數顯示**：`Score: X/總豆子數  Bombs: 剩餘炸彈數`
+- **狀態指示**：
+  - 無敵時顯示「INVINCIBLE!」（橘色）
+  - 凍結時顯示「GHOSTS FROZEN!」（青色）
 
-Images live in `images/`, sounds live in `sounds/`, and `freesansbold.ttf` is included for font support.
+## 遊戲規則 
 
-## Notes
+1. 移動 Pacman 吃掉地圖上的所有豆子
+2. 避免接觸鬼魂（除非處於無敵狀態）
+3. 使用炸彈消滅鬼魂或自衛
+4. 道具隨機出現，收集來獲得特殊能力
+5. 吃完所有豆子或撞到鬼魂時遊戲結束
 
-The game now resolves assets relative to the project folder, so it can be launched from another working directory without losing images or sounds.
+## 功能 
+
+- Pacman 方向旋轉（上下左右）
+- 無敵狀態下的彩色閃爍效果
+- 炸彈放置與爆炸系統
+- 星星和冰塊道具
+- 鬼魂 AI（隨機尋路）
+- 音效和音樂系統
+- 爆炸動畫效果
+- 分數計算系統
+
+## 技術棧 
+
+- **Python 3.8+**
+- **PyGame 2.6.1**
+- **Sprite 碰撞檢測**
+- **時間管理系統**
+- **事件驅動設計**
+
