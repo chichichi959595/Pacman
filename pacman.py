@@ -105,9 +105,10 @@ class PowerUp(pygame.sprite.Sprite):
         super().__init__()
         self.type = p_type
         try:
-            img_file = 'images/star.png' if p_type == 'star' else 'images/ice.png'
+            img_file = asset_path('images', 'star.png') if p_type == 'star' else asset_path('images', 'ice.png')
             self.image = pygame.transform.scale(pygame.image.load(img_file).convert_alpha(), (40, 40))
-        except:
+        except (pygame.error, FileNotFoundError) as exc:
+            print(f"Could not load power-up image: {exc}")
             self.image = pygame.Surface([20, 20])
             self.image.fill(orange if p_type == 'star' else cyan)
         self.rect = self.image.get_rect(center=(x, y))
@@ -258,6 +259,50 @@ def doNext(message, left, all_sprites_list, block_list, monsta_list, wall_list, 
         text3 = font_big.render("To quit, press ESCAPE.", True, white)
         text3_rect = text3.get_rect(center=(300, 335))
         screen.blit(text3, text3_rect)
+
+        pygame.display.flip()
+        clock.tick(10)
+
+def showStartScreen():
+    title_font = pygame.font.Font(None, 56)
+    text_font = pygame.font.Font(None, 28)
+    small_font = pygame.font.Font(None, 24)
+    lines = [
+        "Arrow Keys: Move Pacman",
+        "Left Ctrl: Drop a bomb (3 per round)",
+        "Star: Invincible, eat ghosts for bonus points",
+        "Ice: Freeze ghosts for a short time",
+        "Goal: Eat all pellets and power-ups",
+        "Avoid ghosts and your own bomb blasts",
+    ]
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+                if event.key == pygame.K_RETURN:
+                    return True
+
+        screen.fill(black)
+        title = title_font.render("PACMAN", True, yellow)
+        screen.blit(title, title.get_rect(center=(303, 105)))
+
+        subtitle = text_font.render("How to Play", True, white)
+        screen.blit(subtitle, subtitle.get_rect(center=(303, 160)))
+
+        for i, line in enumerate(lines):
+            text = small_font.render(line, True, cyan if i in (2, 3) else white)
+            screen.blit(text, text.get_rect(center=(303, 215 + i * 34)))
+
+        start_text = text_font.render("Press ENTER to start", True, orange)
+        screen.blit(start_text, start_text.get_rect(center=(303, 470)))
+        quit_text = small_font.render("Press ESC to quit", True, red)
+        screen.blit(quit_text, quit_text.get_rect(center=(303, 510)))
 
         pygame.display.flip()
         clock.tick(10)
@@ -450,4 +495,6 @@ def startGame():
         clock.tick(10)
 
 if __name__ == "__main__":
-    while True: startGame()
+    while True:
+        showStartScreen()
+        startGame()
