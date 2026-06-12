@@ -63,6 +63,21 @@ except (pygame.error, FileNotFoundError) as exc:
     print(f"Could not load explosion images: {exc}")
     _expl_center = _expl_mid = _expl_end = None
 
+# --- Power-up 圖片快取（只載入一次）---
+def _load_powerup_img(filename, fallback_color):
+    try:
+        return pygame.transform.scale(pygame.image.load(asset_path('images', filename)).convert_alpha(), (40, 40))
+    except (pygame.error, FileNotFoundError) as exc:
+        print(f"Could not load power-up image {filename}: {exc}")
+        surf = pygame.Surface([40, 40])
+        surf.fill(fallback_color)
+        return surf
+
+_powerup_imgs = {
+    'star': _load_powerup_img('star.png', orange),
+    'ice':  _load_powerup_img('ice.png',  cyan),
+}
+
 # --- 類別定義 ---
 
 class Bomb(pygame.sprite.Sprite):
@@ -104,13 +119,7 @@ class PowerUp(pygame.sprite.Sprite):
     def __init__(self, x, y, p_type):
         super().__init__()
         self.type = p_type
-        try:
-            img_file = asset_path('images', 'star.png') if p_type == 'star' else asset_path('images', 'ice.png')
-            self.image = pygame.transform.scale(pygame.image.load(img_file).convert_alpha(), (40, 40))
-        except (pygame.error, FileNotFoundError) as exc:
-            print(f"Could not load power-up image: {exc}")
-            self.image = pygame.Surface([20, 20])
-            self.image.fill(orange if p_type == 'star' else cyan)
+        self.image = _powerup_imgs[p_type].copy()
         self.rect = self.image.get_rect(center=(x, y))
 
 class Wall(pygame.sprite.Sprite):
